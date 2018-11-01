@@ -1,0 +1,6 @@
+build/*
+!build/.doNotDelete
+work/*
+!work/.doNotDelete
+images/*
+!images/.doNotDelete

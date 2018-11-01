@@ -1,5 +1,7 @@
 # Amazon Linuz 2 Vagrant Box #
 
+This box is registered as a Vagrant Box at [https://app.vagrantup.com/Eldius/boxes/linux-amzn2](https://app.vagrantup.com/Eldius/boxes/linux-amzn2).
+
 The latest image was built over the version `amzn2-virtualbox-2.0.20181024-x86_64` of AWS Virtualbox provided image.
 
 To build this box you just need to run the `./build.sh` script. You may change the base image by changing the download URL (near the `CHANGE_HERE` tag on coment at `get_base_vdi` function).

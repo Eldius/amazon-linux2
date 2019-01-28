@@ -4,3 +4,4 @@ work/*
 !work/.doNotDelete
 images/*
 !images/.doNotDelete
+.vagrant/

@@ -1,14 +1,17 @@
 #cloud-config
+repo_update: true
+repo_upgrade: all
+
 users:
   - name: ec2-user
-    groups: wheel
+    groups: wheel,root
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
     plain_text_passwd: vagrant
     ssh-authorized-keys:
       - ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEA6NF8iallvQVp22WDkTkyrtvp9eWW6A8YVr+kz4TjGYe7gHzIw+niNltGEFHzD8+v1I2YJ6oXevct1YeS0o9HZyN1Q9qgCgzUFtdOKLv6IedplqoPkcmF0aYet2PkEDo3MlTBckFXPITAMzF8dJSIFo9D8HfdOV0IAdx4O7PtixWKn5y2hMNG0zQPyUecp4pzC6kivAIhyfHilFR61RGL+GPXQ2MWZWFYbAGjyiYJnAmCP3NOTd0jMZEnDkbUvxhMmBYSdETk1rRgm+R4LOzFUGaHqHDLKLX+FIPKcF96hrucXzcWyLbIbEgE98OHlnVYCzRdK8jlqm8tehUc9c9WhQ== vagrant insecure public key
     lock_passwd: false
   - name: vagrant
-    groups: wheel
+    groups: wheel,root
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
     plain_text_passwd: vagrant
     ssh-authorized-keys:
@@ -27,21 +30,38 @@ packages:
   - kernel-headers
   - gcc
   - make
+  - dkms
+  - patch
+  - glibc-headers
+  - glibc-devel
   - perl
   - bzip2
   - mod_ssl
+  - binutils
+  - libgomp
 
+# NOTE: Cloud-init applies network settings on every boot by default. To retain network settings from first boot, add following ‘write_files’ section:
+write_files:
+  - path: /etc/cloud/cloud.cfg.d/80_disable_network_after_firstboot.cfg
+    content: |
+      # Disable network configuration after first boot
+      network:
+        config: disabled
 
 runcmd:
 
-  # Stop cloud-init from randomizing root password on startup
-  - sed -i 's/.*root:RANDOM/#&/g' /etc/cloud/cloud.cfg.d/99_onprem.cfg
+  #- sudo yum update -y
 
-  - sudo touch /home/vagrant/state_file
+  #- sudo yum update -y && sudo yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && sudo yum install -y epel-release && yum groupinstall -y "Development Tools" && sudo yum install -y kernel-devel kernel-headers gcc make perl bzip2 mod_ssl dkms binutils patch libgomp glibc-headers glibc-deve && sudo echo "FINISHED" > /home/vagrant/state_file
 
-  - sudo echo "FINISHED" > /home/vagrant/state_file
+  - sudo yum update -y && yum groupinstall -y "Development Tools" && sudo echo "FINISHED" > /home/vagrant/state_file && sudo cat /home/vagrant/state_file
 
   # Make it look like RedHat
   - ln -s /etc/system-release /etc/redhat-release
+
+  # - sudo touch /home/vagrant/state_file
+
+  # Notify boot configuration finished
+  # - sudo echo "FINISHED" > /home/vagrant/state_file
 
   # log file /var/log/cloud-init-output.log

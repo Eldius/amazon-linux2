@@ -2,13 +2,10 @@
 
 # TODO ADD EXECUTION ERROR VALIDATIONS
 VM='AMZN2-test'
-AWS_VDI=${PWD}/images/amzn2-virtualbox.vdi
-VERSION=2.0.20190228
+VERSION="2.0.20190612"
+FILENAME=amzn2-virtualbox-${VERSION}-x86_64.xfs.gpt.vdi
+AWS_VDI=${PWD}/images/${FILENAME}
 VDI_LINK="https://cdn.amazonlinux.com/os-images/${VERSION}/virtualbox/amzn2-virtualbox-${VERSION}-x86_64.xfs.gpt.vdi"
-
-DRY="0"
-HEADLESS=""
-LOCAL="0"
 
 function usage_description {
     echo "#################################################################################################\n"
@@ -18,27 +15,43 @@ function usage_description {
     echo "#  --dry-run: Don't publish version to Vagrant Cloud                                            #\n"
     echo "#  --headless: Don't show Virtualbox VM window                                                  #\n"
     echo "#  --import-local: Import Created box to local Box list                                         #\n"
+    echo "#  --test-local: Test the created image locally                                                 #\n"
+    echo "#  --debug-mode: Stop the process after the end of configuration and open an SSH console        #\n"
     echo "#                                                                                               #\n"
     echo "#                                                                                               #\n"
     echo "#################################################################################################\n"
 }
+DRY="0"
+HEADLESS="0"
+LOCAL="0"
+TEST="0"
+DEBUG="0"
 
 for var in "$@"
 do
   case $var in
-    "--dry-run"         )
+    "--dry-run"            )
         echo " -> Dry run ON"
         DRY="1"
         ;;
-    "--headless"         )
+    "--headless"           )
         echo " -> Headless ON"
         HEADLESS=" --type headless "
         ;;
-    "--import-local"         )
+    "--import-local"       )
         echo " -> Import local ON"
         LOCAL="1"
         ;;
-    --help             )
+    "--test-local"         )
+        echo " -> Test local ON"
+        TEST="1"
+        LOCAL="1"
+        ;;
+    "--debug-mode"         )
+        echo " -> Debug mode ON"
+        DEBUG="1"
+        ;;
+    --help                 )
         usage_description
         exit 0
         ;;
@@ -74,15 +87,15 @@ function get_base_vdi {
     echo "Downloading Amazon Linux 2 image..."
     echo ""
 
-    FILE=work/amazon_image.vdi
+    FILE=${PWD}/work/${FILENAME}
     if [ ! -f $FILE ]; then
         echo "amzn2-virtualbox-${VERSION}-x86_64.xfs.gpt" > .imageVersion
         ## CHANGE_HERE If you want to use a newer version of AWS provided base image
         wget \
             "$VDI_LINK" \
-            -O work/amazon_image.vdi
+            -O $FILE
     fi
-    cp work/amazon_image.vdi $AWS_VDI
+    cp $FILE $AWS_VDI
 
     echo ""
     echo "Amazon Linux 2 image downloaded."
@@ -195,11 +208,24 @@ function create_machine {
 }
 
 function wait_boot_finishes {
+    STATE=$( ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" ls -la )
+
+    while [ $? -ne 0 ]
+    do
+        echo "waiting boot fish..."
+        sleep 10
+        STATE=$( ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" ls -la )
+    done
+}
+
+
+
+function wait_first_setup_finishes {
     STATE=$(ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" cat /home/vagrant/state_file)
 
     while [ "$STATE" != "FINISHED" ]
     do
-        echo "waiting..."
+        echo "waiting startup setup..."
         sleep 10
         STATE=$(ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" cat /home/vagrant/state_file)
     done
@@ -238,16 +264,34 @@ function setup_guest_adition {
     echo ""
 
 ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" << SSH
+    echo "----------------"
+    echo " => UPDATING KERNEL PACKAGES"
+    yum update kernel* -y
+    echo "----------------"
+    reboot
+SSH
+
+wait_boot_finishes
+
+ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" << SSH
+
     KERN_DIR=/usr/src/kernels/`uname -r`/build
 
     sudo yum update -y
 
+    echo "----------------"
+    echo " => CREATING MOUNTING POINT"
     sudo mkdir -p /media/cdrom1
+    echo " => MOUNTING GUEST ADITIONS CD"
     sudo mount -t iso9660 -o ro /dev/sr0 /media/cdrom1
     cd /media/cdrom1/
+    echo " => STARTING INSTALLATION"
     sudo ./VBoxLinuxAdditions.run
 
-    lsmod | grep vboxguest
+    echo "----------------"
+    echo "TESTING VBOX GUEST ADDITIONS PRESENCE"
+    echo "test result: \$( lsmod | grep vboxguest )"
+    echo "----------------"
 
     sudo reboot
 SSH
@@ -265,12 +309,14 @@ SSH
     wait_boot_finishes
 
 ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" << SSH
-    lsmod | grep vboxguest
+    echo "----------------"
+    echo "[AGAIN] TESTING VBOX GUEST ADDITIONS PRESENCE"
+    echo "test result: \$( lsmod | grep vboxguest )"
+    echo "----------------"
 SSH
 
+    test_vbox_guest_aditions
 }
-
-
 
 function publish_version {
     echo ""
@@ -296,6 +342,29 @@ function publish_version {
     echo ""
 }
 
+function test_error {
+    echo "Ooops! Something went wrong here... Take a look!"
+    exit 1
+}
+
+function test_generated_box {
+    echo ""
+    echo "Starting a test instance..."
+    echo ""
+
+    if [ "${TEST}" -eq "1" ];then
+        cd test
+        vagrant destroy -f && \
+            vagrant up --debug && \
+            echo "Successfully tested the new Box" || \
+            test_error
+    fi
+
+    echo ""
+    echo "Box published at Vagrant Cloud."
+    echo ""
+}
+
 function package_box {
     echo ""
     echo "Packaging box..."
@@ -310,7 +379,7 @@ function package_box {
 
 function import_local {
 
-    if [ "${LOCAL}" -ne "0" ];then
+    if [ "${LOCAL}" -eq "1" ];then
         echo ""
         echo "Importing box to local repository..."
         echo ""
@@ -324,13 +393,29 @@ function import_local {
     fi
 }
 
+function test_vbox_guest_aditions {
+    wait_boot_finishes
+
+    TEST_RESULT=$( ssh \
+        -i build/insecure_key vagrant@localhost \
+        -p 9999 \
+        -o "StrictHostKeyChecking no" \
+        -o "UserKnownHostsFile=/dev/null" \
+        -o "ConnectTimeout=3" \
+            echo "  --\> test result: \$( sudo lsmod | grep vboxguest ) \<-- "
+    )
+
+    echo "----------------"
+    echo "[AGAIN] TESTING VBOX GUEST ADDITIONS PRESENCE"
+    echo "test result: ${TEST_RESULT}"
+    echo "----------------"
+}
+
 function get_cloudinit_log {
 
-cd build
 sftp -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" << SFTP
     get /var/log/cloud-init*
 SFTP
-cd ..
 
 }
 
@@ -341,9 +426,24 @@ ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no
     sudo rm -rfv /var/cache/yum
     sudo rm /home/vagrant/state_file
     cat /dev/null > ~/.bash_history && history -c
-    sudo halt
 SSH
 
+}
+
+function debug_virtual_machine {
+    if [ "${DEBUG}" -eq "1" ];then
+        echo "## ENTERING DEBUG MODE ###"
+
+        ssh \
+            -i build/insecure_key \
+            vagrant@localhost \
+            -p 9999 \
+            -o "StrictHostKeyChecking no" \
+            -o "UserKnownHostsFile=/dev/null" \
+            -o "ConnectTimeout=3"
+
+        echo "## EXITING DEBUG MODE ###"
+    fi
 }
 
 clean
@@ -357,8 +457,10 @@ VBoxManage startvm $VM $HEADLESS
 #vboxmanage showvminfo $VM
 
 sleep 60
-wait_boot_finishes
+wait_first_setup_finishes
 setup_guest_adition
+
+debug_virtual_machine
 
 #read -p "Press enter to continue"
 
@@ -374,14 +476,13 @@ echo ""
 
 notify-send --urgency=low "hey you!" "Finished VM creation..."
 
-get_cloudinit_log
+#get_cloudinit_log
 
 clean_image
 
 package_box
-
-publish_version
-
 import_local
+test_generated_box
+publish_version
 
 notify-send --urgency=low "hey you!" "Finished Vagrant Box creation."

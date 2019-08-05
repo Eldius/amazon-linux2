@@ -5,3 +5,4 @@ work/*
 images/*
 !images/.doNotDelete
 .vagrant/
+.vscode/

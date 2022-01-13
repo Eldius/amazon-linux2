@@ -2,6 +2,8 @@
 repo_update: true
 repo_upgrade: all
 
+#cloud-config
+#vim:syntax=yaml
 users:
   - name: ec2-user
     groups: wheel,root
@@ -40,7 +42,8 @@ packages:
   - binutils
   - libgomp
 
-# NOTE: Cloud-init applies network settings on every boot by default. To retain network settings from first boot, add following ‘write_files’ section:
+# NOTE: Cloud-init applies network settings on every boot by default. To retain network settings from first
+boot, add following ‘write_files’ section:
 write_files:
   - path: /etc/cloud/cloud.cfg.d/80_disable_network_after_firstboot.cfg
     content: |

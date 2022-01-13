@@ -2,7 +2,7 @@
 
 # TODO ADD EXECUTION ERROR VALIDATIONS
 VM='AMZN2-test'
-VERSION="2.0.20190612"
+VERSION="2.0.20211223.0"
 FILENAME=amzn2-virtualbox-${VERSION}-x86_64.xfs.gpt.vdi
 AWS_VDI=${PWD}/images/${FILENAME}
 VDI_LINK="https://cdn.amazonlinux.com/os-images/${VERSION}/virtualbox/amzn2-virtualbox-${VERSION}-x86_64.xfs.gpt.vdi"
@@ -61,7 +61,9 @@ done
 
 function clean {
     echo ""
+    echo "---"
     echo "Cleaning old work files..."
+    echo "---"
     echo ""
 
     VBoxManage controlvm $VM poweroff
@@ -78,13 +80,17 @@ function clean {
     chmod 600 build/insecure_key
 
     echo ""
+    echo "---"
     echo "Old work files cleaned."
+    echo "---"
     echo ""
 }
 
 function get_base_vdi {
     echo ""
+    echo "---"
     echo "Downloading Amazon Linux 2 image..."
+    echo "---"
     echo ""
 
     FILE=${PWD}/work/${FILENAME}
@@ -98,19 +104,25 @@ function get_base_vdi {
     cp $FILE $AWS_VDI
 
     echo ""
+    echo "---"
     echo "Amazon Linux 2 image downloaded."
+    echo "---"
     echo ""
 }
 
 function generate_seed {
     echo ""
+    echo "---"
     echo "Generating seed image..."
+    echo "---"
     echo ""
 
     genisoimage -input-charset utf-8 -output build/seed.iso -volid cidata -joliet -rock seedconfig/user-data seedconfig/meta-data
 
     echo ""
+    echo "---"
     echo "Seed image generated."
+    echo "---"
     echo ""
 }
 
@@ -120,11 +132,13 @@ function create_machine {
     echo ""
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Create VM '$VM'"
     echo ""
 
     VBoxManage createvm --name $VM --ostype "Linux_64" --register
 
+    echo "---"
     echo ""
     echo "#####################################"
     echo "#####################################"
@@ -133,7 +147,9 @@ function create_machine {
 
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Add Main Drive Media"
+    echo "---"
     echo ""
 
     VBoxManage storagectl $VM \
@@ -152,7 +168,9 @@ function create_machine {
     echo ""
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Creating storage controller for DVD ROM"
+    echo "---"
     echo ""
 
     VBoxManage storagectl $VM \
@@ -166,7 +184,9 @@ function create_machine {
     echo ""
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Add User Data Media"
+    echo "---"
     echo ""
 
     VBoxManage storageattach $VM \
@@ -185,7 +205,9 @@ function create_machine {
 
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Configuring RAM and VRAM"
+    echo "---"
     echo ""
 
     VBoxManage modifyvm $VM --memory 1024 --vram 128
@@ -194,12 +216,37 @@ function create_machine {
     echo "#####################################"
     echo "#####################################"
 
+
+
     echo "#####################################"
     echo "#####################################"
-    echo "Configuring SSH port forward"
+    echo "---"
+    echo "Configuring Network"
+    echo "---"
     echo ""
 
+    #VBoxManage modifyvm $VM --nic1 hostonly --hostonlyadapter1 vboxnet0 --ostype RedHat_64
+    vboxmanage showvminfo --details $VM
     VBoxManage modifyvm $VM --natpf1 "guestssh,tcp,,9999,,22"
+
+    echo ""
+    echo "#####################################"
+    echo "#####################################"
+
+
+    echo "#####################################"
+    echo "#####################################"
+    echo "---"
+    echo "Configuring SSH port forward"
+    echo "---"
+    echo ""
+
+    #VBoxManage modifyvm $VM --natpf2 "guestssh,tcp,,9999,,22"
+    #VBoxManage natnetwork add --netname natnet2 --network "192.168.15.0/24" --enable --dhcp on
+    #VBoxManage modifyvm $VM natpf2 "guestssh,tcp,,9999,,22"
+    #VBoxManage natnetwork modify \
+    #    --netname natnet2 --port-forward-4 "ssh:tcp:[]:9999:[192.168.15.5]:22"
+    #VBoxManage natnetwork start --netname natnet2
 
     echo ""
     echo "#####################################"
@@ -212,7 +259,9 @@ function wait_boot_finishes {
 
     while [ $? -ne 0 ]
     do
+        echo "---"
         echo "waiting boot fish..."
+        echo "---"
         sleep 10
         STATE=$( ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" ls -la )
     done
@@ -225,7 +274,9 @@ function wait_first_setup_finishes {
 
     while [ "$STATE" != "FINISHED" ]
     do
+        echo "---"
         echo "waiting startup setup..."
+        echo "---"
         sleep 10
         STATE=$(ssh -i build/insecure_key vagrant@localhost -p 9999 -o "StrictHostKeyChecking no" -o "UserKnownHostsFile=/dev/null" -o "ConnectTimeout=3" cat /home/vagrant/state_file)
     done
@@ -234,7 +285,9 @@ function wait_first_setup_finishes {
 function setup_guest_adition {
     echo "#####################################"
     echo "#####################################"
+    echo "---"
     echo "Add Guest Additions Media"
+    echo "---"
     echo ""
 
     VBoxManage storageattach $VM \
@@ -320,7 +373,9 @@ SSH
 
 function publish_version {
     echo ""
+    echo "---"
     echo "Publishing image to Vagrant Cloud..."
+    echo "---"
     echo ""
 
     if [ "${DRY}" -eq "0" ];then
@@ -334,22 +389,30 @@ function publish_version {
             virtualbox \
             build/amazonlinux2.box
     else
+        echo "---"
         echo "Dry run. Not publishing..."
+        echo "---"
     fi
 
     echo ""
+    echo "---"
     echo "Box published at Vagrant Cloud."
+    echo "---"
     echo ""
 }
 
 function test_error {
+    echo "---"
     echo "Ooops! Something went wrong here... Take a look!"
+    echo "---"
     exit 1
 }
 
 function test_generated_box {
     echo ""
+    echo "---"
     echo "Starting a test instance..."
+    echo "---"
     echo ""
 
     if [ "${TEST}" -eq "1" ];then
@@ -361,19 +424,25 @@ function test_generated_box {
     fi
 
     echo ""
+    echo "---"
     echo "Box published at Vagrant Cloud."
+    echo "---"
     echo ""
 }
 
 function package_box {
     echo ""
+    echo "---"
     echo "Packaging box..."
+    echo "---"
     echo ""
 
     vagrant package --base $VM --output build/amazonlinux2.box
 
     echo ""
+    echo "---"
     echo "Box package finished"
+    echo "---"
     echo ""
 }
 
@@ -381,13 +450,17 @@ function import_local {
 
     if [ "${LOCAL}" -eq "1" ];then
         echo ""
+        echo "---"
         echo "Importing box to local repository..."
+        echo "---"
         echo ""
 
         vagrant box add Eldius/linux-amzn2 build/amazonlinux2.box --force
 
         echo ""
+        echo "---"
         echo "Finished box import to local repository."
+        echo "---"
         echo ""
 
     fi
@@ -432,7 +505,9 @@ SSH
 
 function debug_virtual_machine {
     if [ "${DEBUG}" -eq "1" ];then
+        echo "---"
         echo "## ENTERING DEBUG MODE ###"
+        echo "---"
 
         ssh \
             -i build/insecure_key \
@@ -484,5 +559,7 @@ package_box
 import_local
 test_generated_box
 publish_version
+
+clean
 
 notify-send --urgency=low "hey you!" "Finished Vagrant Box creation."
